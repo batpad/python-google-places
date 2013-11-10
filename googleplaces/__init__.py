@@ -148,6 +148,7 @@ def _validate_response(url, response):
         raise GooglePlacesError, error_detail
 
 
+
 class GooglePlacesError(Exception):
     pass
 
@@ -205,15 +206,23 @@ class GooglePlaces(object):
                           DeprecationWarning, stacklevel=2)
         return self.nearby_search(**kwargs)
 
+    def _search_by_token(self, url, pagetoken):
+        self._request_params = {'pagetoken': pagetoken}
+        self._add_required_param_keys()
+        url, places_response = _fetch_remote_json(url, self._request_params)
+        _validate_response(url, places_response)
+        return places_response
+
     def nearby_search(self, language=lang.ENGLISH, keyword=None, location=None,
                lat_lng=None, name=None, radius=3200, rankby=ranking.PROMINENCE,
-               sensor=False, types=[]):
+               sensor=False, types=[], pagetoken=None):
         """Perform a nearby search using the Google Places API.
 
         One of either location or lat_lng are required, the rest of the keyword
         arguments are optional.
 
         keyword arguments:
+        pagetoken    -- A page token id, if provided, all other params will be ignored.
         keyword  -- A term to be matched against all available fields, including
                     but not limited to name, type, and address (default None)
         location -- A human readable location, e.g 'London, England'
@@ -236,6 +245,10 @@ class GooglePlaces(object):
         types    -- An optional list of types, restricting the results to
                     Places (default []).
         """
+        if pagetoken:
+            places_response = self._search_by_token(self.NEARBY_SEARCH_API_URL, pagetoken)
+            return GooglePlacesSearchResult(self, places_response)
+
         if location is None and lat_lng is None:
             raise ValueError('One of location or lat_lng must be passed in.')
         if rankby == 'distance':
@@ -478,6 +491,7 @@ class GooglePlacesSearchResult(object):
         for place in response['results']:
             self._places.append(Place(query_instance, place))
         self._html_attributions = response.get('html_attributions', [])
+        self._next_page_token = response.get('next_page_token', None)
 
     @property
     def places(self):
@@ -497,6 +511,14 @@ class GooglePlacesSearchResult(object):
     def has_attributions(self):
         """Returns a flag denoting if the response had any html attributions."""
         return len(self.html_attributions) > 0
+
+    @property
+    def next_page_token(self):
+        return self._next_page_token
+
+    @property
+    def has_next_page(self):
+        return self._next_page_token is not None
 
 
 class Place(object):
