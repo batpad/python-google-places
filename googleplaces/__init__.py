@@ -74,7 +74,7 @@ def _fetch_remote_file(service_url, params={}, use_http_post=False):
     return (response.headers.get('content-type'),
             fn, response.read(), response.geturl())
 
-def geocode_location(location, sensor=False):
+def geocode_location(location, sensor=False, key=None):
     """Converts a human-readable location to lat-lng.
 
     Returns a dict with lat and lng keys.
@@ -88,9 +88,14 @@ def geocode_location(location, sensor=False):
     GooglePlacesError -- if the geocoder fails to find a location.
     """
 
+    params = {
+        'address': location,
+        'sensor': str(sensor).lower()
+    }
+    if key:
+        params['key'] = key
     url, geo_response = _fetch_remote_json(
-            GooglePlaces.GEOCODE_API_URL,
-            {'address': location, 'sensor': str(sensor).lower()})
+            GooglePlaces.GEOCODE_API_URL,  params)
     _validate_response(url, geo_response)
     if geo_response['status'] == GooglePlaces.RESPONSE_STATUS_ZERO_RESULTS:
         error_detail = ('Lat/Lng for location \'%s\' can\'t be determined.' %
@@ -258,7 +263,7 @@ class GooglePlaces(object):
                                  'must be specified.')
         self._sensor = sensor
         self._lat_lng = (lat_lng if lat_lng is not None
-                         else geocode_location(location))
+                         else geocode_location(location, key=self.api_key))
         radius = (radius if radius <= GooglePlaces.MAXIMUM_SEARCH_RADIUS
                   else GooglePlaces.MAXIMUM_SEARCH_RADIUS)
         lat_lng_str = '%(lat)s,%(lng)s' % self._lat_lng
@@ -337,9 +342,9 @@ class GooglePlaces(object):
         types    -- An optional list of types, restricting the results to
                     Places (default []).
         """
-        
+        self._request_params = {}
         if keyword is not None:
-            self._request_params = {'keyword': keyword}
+            self._request_params['keyword'] = keyword
         self._sensor = sensor    
         if lat_lng is not None:
             lat_lng_str = '%(lat)s,%(lng)s' % lat_lng
